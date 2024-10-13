@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+<title>Responsive Breakout Game</title>
+<style>
+    body {
+        margin: 0;
+        overflow: hidden;
+        background: #222;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        font-family: Arial, sans-serif;
+    }
+    canvas {
+        background: #000;
+        max-width: 100%;
+        max-height: 100%;
+    }
+    #endingScreen {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        color: white;
+        font-size: 24px;
+        display: none;
+    }
+    #tryAgainButton {
+        margin-top: 20px;
+        padding: 10px 20px;
+        font-size: 18px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+    }
+    #tryAgainButton:hover {
+        background-color: #45a049;
+    }
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+<div id="endingScreen">
+    <h1>Game Over</h1>
+    <p>Your Score: <span id="finalScore"></span></p>
+    <button id="tryAgainButton">Try Again</button>
+</div>
+
+<script>
+(function() {
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const endingScreen = document.getElementById('endingScreen');
+    const finalScoreSpan = document.getElementById('finalScore');
+    const tryAgainButton = document.getElementById('tryAgainButton');
+
+    let paddleHeight, paddleWidth, paddleX, rightPressed, leftPressed;
+    let ballRadius, x, y, dx, dy;
+    let brickRowCount, brickColumnCount, brickWidth, brickHeight, brickPadding, brickOffsetTop, brickOffsetLeft;
+    let bricks = [];
+    let touchX = null;
+    let score = 0;
+    let lives = 3;
+    let paused = false;
+    let ballSpeed = 5;
+    let maxBallSpeed = 15;
+    let animationFrameId;
+
+    function initGame() {
+        resizeCanvas();
+        initVariables();
+        createBricks();
+        paused = false;
+        gameLoop();
+    }
+
+    function resizeCanvas() {
+        const maxWidth = 800;
+        const maxHeight = 600;
+        const aspectRatio = maxWidth / maxHeight;
+        
+        let newWidth = window.innerWidth;
+        let newHeight = window.innerHeight;
+        
+        if (newWidth / newHeight > aspectRatio) {
+            newWidth = newHeight * aspectRatio;
+        } else {
+            newHeight = newWidth / aspectRatio;
+        }
+        
+        canvas.width = Math.min(newWidth, maxWidth);
+        canvas.height = Math.min(newHeight, maxHeight);
+    }
+
+    function initVariables() {
+        paddleHeight = canvas.height * 0.02;
+        paddleWidth = canvas.width * 0.15;
+        paddleX = (canvas.width - paddleWidth) / 2;
+
+        ballRadius = Math.min(canvas.width, canvas.height) * 0.015;
+        x = canvas.width / 2;
+        y = canvas.height - 30;
+        resetBallSpeed();
+
+        brickRowCount = 5;
+        brickColumnCount = 8;
+        brickWidth = (canvas.width * 0.9) / brickColumnCount;
+        brickHeight = canvas.height * 0.04;
+        brickPadding = Math.min(canvas.width, canvas.height) * 0.01;
+        brickOffsetTop = canvas.height * 0.1;
+        brickOffsetLeft = (canvas.width - (brickColumnCount * (brickWidth + brickPadding))) / 2;
+
+        rightPressed = false;
+        leftPressed = false;
+        score = 0;
+        lives = 3;
+        ballSpeed = 5;
+    }
+
+    function resetBallSpeed() {
+        const angle = Math.random() * Math.PI / 2 + Math.PI / 4;
+        dx = ballSpeed * Math.cos(angle);
+        dy = -ballSpeed * Math.sin(angle);
+    }
+
+    function createBricks() {
+        bricks = [];
+        for(let c = 0; c < brickColumnCount; c++) {
+            bricks[c] = [];
+            for(let r = 0; r < brickRowCount; r++) {
+                const colorArray = ["#0095DD", "#FF5733", "#33FF57", "#FF33A8", "#F3FF33"];
+                bricks[c][r] = { x: 0, y: 0, status: 1, color: colorArray[r % colorArray.length] };
+            }
+        }
+    }
+
+    function drawScore() {
+        ctx.font = `${canvas.width * 0.02}px Arial`;
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillText("Score: " + score, canvas.width * 0.01, canvas.height * 0.03);
+    }
+
+    function drawLives() {
+        ctx.font = `${canvas.width * 0.02}px Arial`;
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillText("Lives: " + lives, canvas.width * 0.9, canvas.height * 0.03);
+    }
+
+    function drawBall() {
+        ctx.beginPath();
+        ctx.arc(x, y, ballRadius, 0, Math.PI*2);
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fill();
+        ctx.closePath();
+    }
+
+    function drawPaddle() {
+        ctx.beginPath();
+        ctx.rect(paddleX, canvas.height - paddleHeight - 10, paddleWidth, paddleHeight);
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fill();
+        ctx.closePath();
+    }
+
+    function drawBricks() {
+        for(let c = 0; c < brickColumnCount; c++) {
+            for(let r = 0; r < brickRowCount; r++) {
+                let b = bricks[c][r];
+                if(b.status == 1) {
+                    let brickX = (c * (brickWidth + brickPadding)) + brickOffsetLeft;
+                    let brickY = (r * (brickHeight + brickPadding)) + brickOffsetTop;
+                    b.x = brickX;
+                    b.y = brickY;
+                    ctx.beginPath();
+                    ctx.rect(brickX, brickY, brickWidth, brickHeight);
+                    ctx.fillStyle = b.color;
+                    ctx.fill();
+                    ctx.closePath();
+                }
+            }
+        }
+    }
+
+    function collisionDetection() {
+        for(let c = 0; c < brickColumnCount; c++) {
+            for(let r = 0; r < brickRowCount; r++) {
+                let b = bricks[c][r];
+                if(b.status == 1) {
+                    if(x > b.x - ballRadius && x < b.x + brickWidth + ballRadius &&
+                       y > b.y - ballRadius && y < b.y + brickHeight + ballRadius) {
+                        dy = -dy;
+                        b.status = 0;
+                        score++;
+                        increaseBallSpeed(0.2);
+                        if(score == brickRowCount * brickColumnCount) {
+                            showEndingScreen("You Win!");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    function increaseBallSpeed(amount) {
+        ballSpeed = Math.min(ballSpeed + amount, maxBallSpeed);
+        const currentAngle = Math.atan2(-dy, dx);
+        dx = ballSpeed * Math.cos(currentAngle);
+        dy = -ballSpeed * Math.sin(currentAngle);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawBricks();
+        drawBall();
+        drawPaddle();
+        drawScore();
+        drawLives();
+        collisionDetection();
+
+        if(x + dx > canvas.width - ballRadius || x + dx < ballRadius) {
+            dx = -dx;
+            increaseBallSpeed(0.1);
+        }
+        if(y + dy < ballRadius) {
+            dy = -dy;
+        } else if(y + dy > canvas.height - ballRadius - paddleHeight - 10) {
+            if(x > paddleX && x < paddleX + paddleWidth) {
+                dy = -dy;
+                dx += (x - (paddleX + paddleWidth / 2)) * 0.1;
+                increaseBallSpeed(0.3);
+            } else if(y + dy > canvas.height - ballRadius) {
+                lives--;
+                if(!lives) {
+                    showEndingScreen("Game Over");
+                } else {
+                    x = canvas.width / 2;
+                    y = canvas.height - 30;
+                    resetBallSpeed();
+                    paddleX = (canvas.width - paddleWidth) / 2;
+                }
+            }
+        }
+
+        x += dx;
+        y += dy;
+
+        if(rightPressed && paddleX < canvas.width - paddleWidth) {
+            paddleX += canvas.width * 0.01;
+        }
+        if(leftPressed && paddleX > 0) {
+            paddleX -= canvas.width * 0.01;
+        }
+    }
+
+    function gameLoop() {
+        if (!paused) {
+            draw();
+        }
+        animationFrameId = window.requestAnimationFrame(gameLoop);
+    }
+
+    function showEndingScreen(message) {
+        endingScreen.style.display = 'flex';
+        document.querySelector('#endingScreen h1').textContent = message;
+        finalScoreSpan.textContent = score;
+        paused = true;
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+    }
+
+    function keyDownHandler(e) {
+        if(e.key === "Right" || e.key === "ArrowRight") {
+            rightPressed = true;
+        } else if(e.key === "Left" || e.key === "ArrowLeft") {
+            leftPressed = true;
+        } else if(e.key === "p" || e.key === "P") {
+            paused = !paused;
+            if (!paused) {
+                gameLoop();
+            }
+        }
+    }
+
+    function keyUpHandler(e) {
+        if(e.key === "Right" || e.key === "ArrowRight") {
+            rightPressed = false;
+        } else if(e.key === "Left" || e.key === "ArrowLeft") {
+            leftPressed = false;
+        }
+    }
+
+    function touchStartHandler(e) {
+        touchX = e.touches[0].clientX;
+    }
+
+    function touchMoveHandler(e) {
+        let touch = e.touches[0];
+        let relativeX = touch.clientX - canvas.offsetLeft;
+        if(relativeX > 0 && relativeX < canvas.width) {
+            paddleX = relativeX - paddleWidth / 2;
+        }
+        e.preventDefault();
+    }
+
+    function resizeHandler() {
+        resizeCanvas();
+        initVariables();
+        createBricks();
+    }
+
+    document.addEventListener("keydown", keyDownHandler, false);
+    document.addEventListener("keyup", keyUpHandler, false);
+    canvas.addEventListener("touchstart", touchStartHandler, {passive: false});
+    canvas.addEventListener("touchmove", touchMoveHandler, {passive: false});
+    window.addEventListener("resize", resizeHandler, false);
+
+    tryAgainButton.addEventListener("click", function() {
+        endingScreen.style.display = 'none';
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        initGame();
+    });
+
+    initGame();
+})();
+</script>
+
+</body>
+</html>
