@@ -1,65 +1,79 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
-<title>Responsive Breakout Game</title>
-<style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';">
+  <title>Responsive Breakout Game</title>
+  <style>
     body {
-        margin: 0;
-        overflow: hidden;
-        background: #222;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        font-family: Arial, sans-serif;
+      margin: 0;
+      overflow: hidden;
+      background: #222;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-family: Arial, sans-serif;
+      position: relative; /* Ensure overlay is positioned correctly */
     }
     canvas {
-        background: #000;
-        max-width: 100%;
-        max-height: 100%;
+      background: #000;
+      max-width: 100%;
+      max-height: 100%;
     }
-    #endingScreen {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.8);
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        color: white;
-        font-size: 24px;
-        display: none;
+    /* Styles for Overlays */
+    .overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-size: 24px;
+      z-index: 10;
+      display: none; /* Hidden by default */
     }
-    #tryAgainButton {
-        margin-top: 20px;
-        padding: 10px 20px;
-        font-size: 18px;
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-        transition: background-color 0.3s;
+    .active {
+      display: flex; /* Show when active */
     }
-    #tryAgainButton:hover {
-        background-color: #45a049;
+    #tryAgainButton, #startButton {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 18px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s;
     }
-</style>
+    #tryAgainButton:hover, #startButton:hover {
+      background-color: #45a049;
+    }
+  </style>
 </head>
 <body>
 
-<canvas id="gameCanvas"></canvas>
-<div id="endingScreen">
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- Start Screen Overlay -->
+  <div id="startScreen" class="overlay active">
+    <h1>Breakout Game</h1>
+    <button id="startButton">Start Game</button>
+  </div>
+
+  <!-- Ending Screen Overlay -->
+  <div id="endingScreen" class="overlay">
     <h1>Game Over</h1>
     <p>Your Score: <span id="finalScore"></span></p>
     <button id="tryAgainButton">Try Again</button>
-</div>
+  </div>
 
 <script>
 (function() {
@@ -68,6 +82,10 @@
     const endingScreen = document.getElementById('endingScreen');
     const finalScoreSpan = document.getElementById('finalScore');
     const tryAgainButton = document.getElementById('tryAgainButton');
+
+    // Added: Start Screen Elements
+    const startScreen = document.getElementById('startScreen');
+    const startButton = document.getElementById('startButton');
 
     let paddleHeight, paddleWidth, paddleX, rightPressed, leftPressed;
     let ballRadius, x, y, dx, dy;
@@ -331,6 +349,7 @@
     canvas.addEventListener("touchmove", touchMoveHandler, {passive: false});
     window.addEventListener("resize", resizeHandler, false);
 
+    // Existing Try Again Button Handler
     tryAgainButton.addEventListener("click", function() {
         endingScreen.style.display = 'none';
         if (animationFrameId) {
@@ -340,7 +359,14 @@
         initGame();
     });
 
-    initGame();
+    // Added Start Button Handler
+    startButton.addEventListener("click", function() {
+        startScreen.style.display = 'none';
+        initGame();
+    });
+
+    // Prevent the game from auto-starting by commenting out the initGame() call
+    // initGame();
 })();
 </script>
 
